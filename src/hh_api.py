@@ -32,7 +32,6 @@ class HeadHunterAPI:
             params = {"per_page": 100,
                       "employer_id": employer_id,
                       "only_with_salary": True,
-                      "area": 113,
                       "only_with_vacancies": True}
             response = requests.get(self.__base_url, params=params)
             response.raise_for_status()  # Проверяем статус ответа
@@ -51,11 +50,10 @@ class HeadHunterAPI:
             employer_info = self.get_request(self.__employers_dict[employer])
             for info in employer_info:
                 employer_list.append({'employer': employer,
-                                      'url': info['employer']['alternate_url'],
-                                      'vacancy_name': info['name']})
+                                      'url': info['employer']['alternate_url']})
         return employer_list
 
-    def get_vacancies(self):
+    def list_vacancies(self):
         """
         Получает список всех вакансий с указанием названия компании,
         названия вакансии и зарплаты и ссылки на вакансию
@@ -64,19 +62,24 @@ class HeadHunterAPI:
         for employer_id in self.__employers_dict:
             emp_vacancies = self.get_request(self.__employers_dict[employer_id])
             for vacancy in emp_vacancies:
-                if vacancy['salary']['from'] is not None and vacancy['salary']['to'] is not None:
-                    vacancies_list.append({'vacancy_name': vacancy['name'],
-                                           'city': vacancy['area']['name'],
-                                           'salary_from': vacancy['salary']['from'],
-                                           'salary_to': vacancy['salary']['to'],
-                                           'publish_date': vacancy['published_at'],
-                                           'vacancy_url': vacancy['alternate_url'],
-                                           'company_name': vacancy['employer']['name']})
+                if vacancy['salary'] is None:
+                    salary = 0
+
+                elif vacancy['salary']['from'] is None:
+                    salary = vacancy['salary']['to']
+
+                elif vacancy['salary']['to'] is None:
+                    salary = vacancy['salary']['from']
+                else:
+                    salary = (vacancy['salary']['from'] + vacancy['salary']['to']) / 2
+                vacancies_list.append({'vacancy_name': vacancy['name'],
+                                       'city': vacancy['area']['name'],
+                                       'salary': salary,
+                                       'currency': vacancy['salary']['currency'],
+                                       'responsibility': vacancy['snippet']['responsibility'],
+                                       'publish_date': vacancy['published_at'],
+                                       'experience': vacancy['experience']['name'],
+                                       'vacancy_url': vacancy['alternate_url'],
+                                       'company_name': vacancy['employer']['name']})
         return vacancies_list
 
-
-hh = HeadHunterAPI()
-vacancies = hh.get_vacancies()
-print(len(vacancies))
-for vac in vacancies:
-    print(vac)

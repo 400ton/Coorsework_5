@@ -1,83 +1,154 @@
 import re
 import psycopg2
+import codecs
 
 
 class DBManager:
     """Класс для работы с базой данных"""
 
-    def __init__(self, params):
+    def __init__(self, params, db_name):
         self.params = params
+        self.db_name = db_name
 
-    def create_bd(self, database_name):
+    def create_bd(self):
         """Cоздание базы данных"""
-        if not re.match(r'^[a-zA-Z0-9_]+$', database_name):  # Проверка на корректность имени
+        if not re.match(r'^[a-zA-Z0-9_]+$', self.db_name):  # Проверка на корректность имени
             raise ValueError("Имя базы данных должно содержать только буквы, цифры и подчеркивания.")
 
+        conn = psycopg2.connect(dbname='postgres', **self.params)
+        conn.autocommit = True
+        cur = conn.cursor()
+
         try:
-            conn = psycopg2.connect(dbname='postgres', **self.params_db)
-            conn.autocommit = True
-            cur = conn.cursor()
-
-            cur.execute(f'DROP DATABASE IF EXISTS {database_name}')
-            cur.execute(f'CREATE DATABASE {database_name}')
-
-            cur.close()
+            cur.execute(f"DROP DATABASE {self.db_name}")
+            cur.execute(f"CREATE DATABASE {self.db_name}")
             conn.close()
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:  # Отлов ошибок
+
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.errors.InvalidCatalogName) as e:
             print(f"Ошибка при создании базы данных: {e}")
 
-    def create_tables(self, database_name):
-        """Создание таблиц companies и vacancies в созданной базе данных HH_vacancy"""
+    def create_tables(self):
+        """Создание таблиц companies и vacancies в созданной базе данных"""
 
         try:
-            with psycopg2.connect(dbname=database_name, **self.params_db) as conn:
+            with psycopg2.connect(dbname=self.db_name, **self.params) as conn:
                 with conn.cursor() as cur:
                     # Проверка на наличие базы данных в PostgreSql
-                    cur.execute("SELECT true FROM pg_catalog.pg_database WHERE datname = %s", (database_name,))
+                    cur.execute("SELECT true FROM pg_catalog.pg_database WHERE datname = %s", self.db_name)
                     if not cur.fetchone():
-                        raise Exception(f"База данных {database_name} не найдена.")
+                        raise Exception(f"База данных {self.db_name} не найдена.")
 
                     cur.execute("""
                         CREATE TABLE companies (
                         company_id SERIAL PRIMARY KEY,
-                        company_name VARCHAR UNIQUE
+                        company_name VARCHAR(100) UNIQUE
+                        company_url VARCHAR(250)
                         )
                         """)
 
                     cur.execute("""
-                            CREATE TABLE vacancies (
-                            vacancy_id serial,
-                            vacancy_name text not null,
-                            salary int,
-                            company_name text REFERENCES companies(company_name) NOT NULL,
-                            vacancy_url varchar not null,
-                            foreign key(company_name) references companies(company_name)
-                            )
-                            """)
+                        CREATE TABLE vacancies (
+                        vacancy_id SERIAL PRIMARY KEY,
+                        vacancy_name VARCHAR(100) not null,
+                        city VARCHAR(255),
+                        salary INT,
+                        currency VARCHAR(10),
+                        responsibility TEXT,
+                        publish_date DATETIME,
+                        experience TEXT,
+                        vacancy_url VARCHAR(250),
+                        company_name VARCHAR(100) REFERENCES companies(company_name) NOT NULL,
+                        foreign key(company_name) REFERENCES companies(company_name)
+                        )
+                        """)
+                conn.commit()
+                conn.close()
         except psycopg2.Error as e:
             print(f"Ошибка при создании таблиц: {e}")
-        finally:
-            conn.close()
+
+    def save_info_db(self, company, vacancies):
+        """Сохранение информации в таблице базы данных"""
+        try:
+            with psycopg2.connect(dbname=self.db_name, **self.params) as conn:
+                with conn.cursor() as cur:
+                    for employer in company:
+                        cur.execute(
+                            f"INSERT INTO companies(company_name, company_url) "
+                            f"VALUES ('{employer['employer']}' {employer['url']}")
+                    for vacancy in vacancies:
+                        cur.execute(
+                            f"INSERT INTO vacancies(vacancy_name, city, salary, currency, responsibility, publish_date, "
+                            f"experience, vacancy_url, company_name) values"
+                            f"('{vacancy['vacancy_name']}', '{vacancy['city']}', '{int(vacancy['salary'])}', "
+                            f"'{vacancy['currency']}', '{vacancy['employer']}', '{vacancy['url']}')")
+                        conn.commit()
+                        conn.close()
+        except psycopg2.Error as e:
+            print(f"Ошибка при заполнении таблиц: {e}")
 
     def get_companies_and_vacancies_count(self):
         """Получение списка всех компаний и
         количества вакансий у каждой компании"""
-        pass
+        try:
+            params_encoded = {k: codecs.encode(v, 'utf-8') for k, v in self.params.items()}
+            with psycopg2.connect(dbname=self.db_name, **params_encoded) as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT company_name, COUNT(vacancy_name) from vacancies GROUP BY company_name')
+                    answer = cur.fetchall()
+            conn.close()
+            return answer
+        except psycopg2.Error as e:
+            print(f"Ошибка при получении списка всех компаний и количества вакансий у каждой компании: {e}")
 
     def get_all_vacancies(self):
-        """получает список всех вакансий с указанием названия компании,
-        названия вакансии и зарплаты и ссылки на вакансию"""
-        pass
+        """Получение списка всех вакансий"""
+        try:
+            params_encoded = {k: codecs.encode(v, 'utf-8') for k, v in self.params.items()}
+            with psycopg2.connect(dbname=self.db_name, **params_encoded) as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT * from vacancies')
+                    answer = cur.fetchall()
+            conn.close()
+            return answer
+        except psycopg2.Error as e:
+            print(f"Ошибка при получении списка всех вакансий: {e}")
 
     def get_avg_salary(self):
         """получает среднюю зарплату по вакансиям"""
-        pass
+        try:
+            params_encoded = {k: codecs.encode(v, 'utf-8') for k, v in self.params.items()}
+            with psycopg2.connect(dbname=self.db_name, **params_encoded) as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT avg(salary) from vacancies')
+                    answer = cur.fetchall()
+            conn.close()
+            return answer
+        except psycopg2.Error as e:
+            print(f"Ошибка при получении средней зарплаты по вакансиям: {e}")
 
     def get_vacancies_with_higher_salary(self):
-        """получает список всех вакансий, у которых зарплата выше средней по всем вакансиям"""
-        pass
+        """Получение списка всех вакансий, у которых зарплата выше средней по всем вакансиям"""
+        try:
+            params_encoded = {k: codecs.encode(v, 'utf-8') for k, v in self.params.items()}
+            with psycopg2.connect(dbname=self.db_name, **params_encoded) as conn:
+                with conn.cursor() as cur:
+                    cur.execute('SELECT vacancy_name, salary FROM vacancies'
+                                'WHERE salary > (SELECT AVG(salary) FROM vacancies)'
+                                'ORDER BY vacancy_name DESC')
+                    answer = cur.fetchall()
+            conn.close()
+            return answer
+        except psycopg2.Error as e:
+            print(f"Ошибка при получении списка всех вакансий, у которых зарплата выше средней по всем вакансиям: {e}")
 
-    def get_vacancies_with_keyword(self):
-        """получает список всех вакансий,
+    def get_vacancies_with_keyword(self, keyword):
+        """Получение списка всех вакансий,
         в названии которых содержатся переданные в метод слова, например python"""
-        pass
+
+        params_encoded = {k: codecs.encode(v, 'utf-8') for k, v in self.params.items()}
+        with psycopg2.connect(dbname=self.db_name, **params_encoded) as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT vacancy_name from vacancies WHERE vacancy_name LIKE '%{keyword}%'")
+                answer = cur.fetchall()
+        conn.close()
+        return answer
