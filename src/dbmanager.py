@@ -4,12 +4,13 @@ import psycopg2
 
 class DBManager:
     """Класс для работы с базой данных"""
+
     def __init__(self, params):
         self.params = params
 
     def create_bd(self, database_name):
         """Cоздание базы данных"""
-        if not re.match(r'^[a-zA-Z0-9_]+$', database_name):
+        if not re.match(r'^[a-zA-Z0-9_]+$', database_name):  # Проверка на корректность имени
             raise ValueError("Имя базы данных должно содержать только буквы, цифры и подчеркивания.")
 
         try:
@@ -22,7 +23,7 @@ class DBManager:
 
             cur.close()
             conn.close()
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:  # Отлов ошибок
             print(f"Ошибка при создании базы данных: {e}")
 
     def create_tables(self, database_name):
@@ -31,6 +32,7 @@ class DBManager:
         try:
             with psycopg2.connect(dbname=database_name, **self.params_db) as conn:
                 with conn.cursor() as cur:
+                    # Проверка на наличие базы данных в PostgreSql
                     cur.execute("SELECT true FROM pg_catalog.pg_database WHERE datname = %s", (database_name,))
                     if not cur.fetchone():
                         raise Exception(f"База данных {database_name} не найдена.")
