@@ -42,8 +42,8 @@ class HeadHunterAPI:
 
     def list_company(self):
         """
-        Получает список всех работодателей с указанием названия компании,
-        названия вакансии и ссылки на вакансию
+        Получает список всех работодателей с указанием названия компании и ссылки на вакансию
+        :return list
         """
         employer_list = []
         for employer in self.__employers_dict:
@@ -51,12 +51,15 @@ class HeadHunterAPI:
             for info in employer_info:
                 employer_list.append({'employer': employer,
                                       'url': info['employer']['alternate_url']})
+                break
+
         return employer_list
 
     def list_vacancies(self):
         """
-        Получает список всех вакансий с указанием названия компании,
-        названия вакансии и зарплаты и ссылки на вакансию
+        Получает список всех вакансий с указанием названии компании,
+        названии вакансии,города, зарплаты, обязанностей, опыта работы, ссылки на вакансию
+        :return list
         """
         vacancies_list = []
         for employer_id in self.__employers_dict:
