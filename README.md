@@ -26,6 +26,10 @@ python3 -m venv venv
 ```ini
 source venv/Scripts/activate
 ```
+- Установите модули из файла ___requirements.txt___ :
+```ini
+pip install -r requirements.txt
+```
 - В папке проекта ___src___ cоздайте ___database.ini___ конфигурационный файл с вашими параметрами подключения к БД.
 
 Пример содержания файла:
