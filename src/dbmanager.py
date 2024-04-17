@@ -81,27 +81,36 @@ class DBManager:
                 with conn.cursor() as cur:
                     for employer in company:
                         cur.execute(
-                            f"INSERT INTO companies(company_name, company_url) "
-                            f"VALUES ('{employer['employer']}', '{employer['url']}')")
+                            f"INSERT INTO companies(company_name, company_url) VALUES (%s, %s)",
+                            (employer['employer'], employer['url'])
+                        )
                     for vacancy in vacancies:
                         cur.execute(
-                            f"INSERT INTO vacancies(vacancy_name, city, salary, currency, responsibility, publish_date, "
-                            f"experience, vacancy_url, company_name) VALUES ("
-                            f"'{vacancy['vacancy_name']}', "
-                            f"'{vacancy['city']}', "
-                            f"'{int(vacancy['salary'])}', "
-                            f"'{vacancy['currency']}', "
-                            f"'{vacancy['responsibility']}', "
-                            f"'{vacancy['publish_date']}', "
-                            f"'{vacancy['experience']}',"
-                            f"'{vacancy['vacancy_url']}', "
-                            f"'{vacancy['company_name']}')")
-
-            conn.commit()
-            conn.close()
-
+                            f"INSERT INTO vacancies(vacancy_name, city, salary, currency, responsibility, "
+                            f"publish_date, experience, vacancy_url, company_name) "
+                            f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                            (
+                                vacancy['vacancy_name'],
+                                vacancy['city'],
+                                int(vacancy['salary']),
+                                vacancy['currency'],
+                                vacancy['responsibility'],
+                                vacancy['publish_date'],
+                                vacancy['experience'],
+                                vacancy['vacancy_url'],
+                                vacancy['company_name']
+                            )
+                        )
+                    # Фиксируем изменения в базе данных
+                    conn.commit()
         except psycopg2.Error as e:
             print(f"Ошибка при заполнении таблиц: {e}")
+            # Если что-то пошло не так, откатываем изменения
+            conn.rollback()
+        finally:
+            # Закрываем соединение независимо от результата
+            if conn is not None:
+                conn.close()
 
     def get_companies_and_vacancies_count(self):
         """Получение списка всех компаний и
