@@ -76,6 +76,7 @@ class DBManager:
         :param company: list
         :param vacancies: list
         """
+
         try:
             with psycopg2.connect(dbname=self.db_name, **self.params) as conn:
                 with conn.cursor() as cur:
